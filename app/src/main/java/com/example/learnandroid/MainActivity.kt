@@ -3,7 +3,10 @@ package com.example.learnandroid
 import android.content.Context
 import android.os.Bundle
 import android.util.Log
+import android.view.GestureDetector
+import android.view.GestureDetector.SimpleOnGestureListener
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
@@ -19,7 +22,9 @@ import androidx.recyclerview.widget.LinearSnapHelper
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.PagerSnapHelper
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.RecyclerView.SCROLL_STATE_IDLE
 import androidx.recyclerview.widget.RecyclerView.SmoothScroller
+import kotlin.math.roundToInt
 
 
 class CenterSmoothScroller(context: Context) : LinearSmoothScroller(context) {
@@ -97,6 +102,22 @@ class MainActivity : AppCompatActivity() {
         val smallSnapHelper = LinearSnapHelper()
         smallSnapHelper.attachToRecyclerView(smallView);
 
+        fun scrollToCenter(percentage: Float) {
+            val linearLayoutManager = smallView.layoutManager as LinearLayoutManager
+            val position = Math.round(percentage)
+            Log.d(TAG, "scrollToCenter: percentage $percentage, position $position")
+            //Log.d(TAG, "position: $position")
+            val view = linearLayoutManager.findViewByPosition(position);
+            if (view != null) {
+                val offset = ((percentage+0.5-position) * view.width).toInt()
+                linearLayoutManager.scrollToPositionWithOffset(position, -offset)
+                //Log.d(TAG, "scrollToCenter: ${(position -1 - percentage)}")
+            }
+        }
+        fun computePosition(offset: Float = 0f):Float {
+            return (bigView.computeHorizontalScrollOffset().toFloat()) / bigView.width
+        }
+
 
         smallView.viewTreeObserver.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
             override fun onGlobalLayout() {
@@ -104,54 +125,57 @@ class MainActivity : AppCompatActivity() {
                 smallView.viewTreeObserver.removeOnGlobalLayoutListener(this)
                 val paddingHorizontal = smallView.width / 2
                 smallView.setPadding(paddingHorizontal, 0, paddingHorizontal, 0)
-                smallView.scrollToPosition(0)
-                scroll(0)
+                scrollToCenter(0f)
+            }
+        })
+
+        val gestureDetector = GestureDetector(this, object : SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean {
+                return true
+            }
+
+            override fun onScroll(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                distanceX: Float,
+                distanceY: Float
+            ): Boolean {
+
+                return true;
             }
         })
 
 
 
-//        bigView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-//            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-//                super.onScrollStateChanged(recyclerView, newState)
-//                if (newState == RecyclerView.SCROLL_STATE_IDLE) {
-//                    val snappedView = bigSnapHelper.findSnapView(recyclerView.layoutManager)
-//                    snappedView?.let {
-//                        val position = recyclerView.layoutManager?.getPosition(snappedView)
-//                        if (position != null) {
-//                            scroll(position)
-//                            Log.d(TAG, "onScrollStateChanged: $position")
-//                        }
-//                    }
-//                }
-//            }
-//            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-//                super.onScrolled(recyclerView, dx, dy)
-//                val snappedView = bigSnapHelper.findSnapView(recyclerView.layoutManager)
-//                snappedView?.let {
-//                    val position = recyclerView.layoutManager?.getPosition(snappedView)
-//                    if (position != null) scroll(position)
-//                }
-//            }
-//            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-//                super.onScrolled(recyclerView, dx, dy)
-//                val snappedView = bigSnapHelper.findSnapView(recyclerView.layoutManager)
-//                snappedView?.let {
-//                    val position = recyclerView.layoutManager?.getPosition(snappedView)
-//                    if (position != null) {
-//                        val view = smallView.layoutManager?.findViewByPosition(position)
-//                        if (view != null) {
-//                            Log.d(TAG, "position: ${snappedView.width}, view: ${view.width}")
-//                            smallView.scrollBy(((dx.toDouble()/snappedView.width)*view.width).toInt(), dy)
-//                        }
-//                    }
-//                }
-//
-//            }
-//        })
-        smallView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+
+        var isBigScrolled = false
+        var isSmallScrolled = false
+
+        bigView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+                super.onScrollStateChanged(recyclerView, newState)
+                if (newState == SCROLL_STATE_IDLE) isBigScrolled = false
+            }
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                 super.onScrolled(recyclerView, dx, dy)
+                if (isSmallScrolled) return;
+
+                isBigScrolled = true;
+                val x =  computePosition(dx.toFloat())
+                scrollToCenter(x)
+            }
+        })
+        smallView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+                super.onScrollStateChanged(recyclerView, newState)
+                if (newState == SCROLL_STATE_IDLE) isSmallScrolled = false
+            }
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                super.onScrolled(recyclerView, dx, dy)
+
+                if (isBigScrolled) return
+
+                isSmallScrolled = true;
                 val snappedView = smallSnapHelper.findSnapView(recyclerView.layoutManager)
                 snappedView?.let {
                     val position = recyclerView.layoutManager?.getPosition(snappedView)
